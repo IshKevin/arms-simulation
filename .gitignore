@@ -1,0 +1,10 @@
+# Kubernetes credentials — never commit, these grant live cluster access
+*.key
+*.kubeconfig
+kubeconfig
+*.crt
+*.csr
+*.pem
+
+# Local access/setup notes (contains internal IP, cluster name, RBAC details)
+access.md
