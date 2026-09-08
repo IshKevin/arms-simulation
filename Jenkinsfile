@@ -1,21 +1,10 @@
 pipeline {
     agent any
 
-    environment {
-        // Every service under services/ is Python. Point this at your real
-        // registry (Docker Hub, ECR, GHCR, ...).
-        //REGISTRY = 'REPLACE_WITH_YOUR_REGISTRY'
-
-        // Jenkins credentials IDs (Manage Jenkins > Credentials) — create these
-        // before running the pipeline for real.
-       // REGISTRY_CREDENTIALS_ID = 'registry-credentials'
-        //GIT_SSH_CREDENTIALS_ID  = 'git-ssh-credentials'
-    }
-
-    // This pipeline is CI only: build, lint, validate, push an image, and bump
-    // the chart's image tag on the current branch. It never touches the
-    // cluster and never runs `kubectl`/`argocd` — deployment is entirely
-    // Argo CD's job once a change lands on main.
+    // This pipeline is CI only: build, lint, validate, and build a local image.
+    // It never touches the cluster, never runs `kubectl`/`argocd`, and never
+    // pushes anything back to git — deployment is entirely Argo CD's job once
+    // a change lands on main.
     stages {
         stage('Verify PR targets main') {
             when {
@@ -101,33 +90,10 @@ pipeline {
                             sh "helm template ${svcPath}/chart | kubeconform -strict -summary"
                         }
 
-                        stage("${svc}: Build and push image") {
-                            withCredentials([usernamePassword(
-                                credentialsId: env.REGISTRY_CREDENTIALS_ID,
-                                usernameVariable: 'REG_USER',
-                                passwordVariable: 'REG_PASS'
-                            )]) {
-                                sh """
-                                    echo "\$REG_PASS" | docker login ${REGISTRY} -u "\$REG_USER" --password-stdin
-                                    docker build -t ${REGISTRY}/${svc}:${commitSha} ${svcPath}
-                                    docker push ${REGISTRY}/${svc}:${commitSha}
-                                """
-                            }
-                        }
-
-                        stage("${svc}: Update tag on this branch") {
-                            // Pushes only to this branch, never to main — main only
-                            // changes when the pull request is actually merged, which
-                            // is what keeps Argo CD from deploying an unreviewed change.
-                            sshagent([env.GIT_SSH_CREDENTIALS_ID]) {
-                                sh """
-                                    yq -i '.image.tag = "${commitSha}"' ${svcPath}/chart/values.yaml
-                                    git config user.email 'jenkins@ci.local'
-                                    git config user.name 'jenkins-ci'
-                                    git commit -am 'ci: update ${svc} tag to ${commitSha} on branch'
-                                    git push origin HEAD:${env.BRANCH_NAME}
-                                """
-                            }
+                        stage("${svc}: Build image") {
+                            // No registry configured yet — build locally to validate
+                            // the Dockerfile, but don't push anywhere.
+                            sh "docker build -t ${svc}:${commitSha} ${svcPath}"
                         }
                     }
                 }
