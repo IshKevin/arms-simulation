@@ -1,19 +1,15 @@
 variable "aws_region" {
-  default = "us-east-1"
+  default = "eu-west-1"
 }
 
 variable "instance_type" {
   default = "t3.medium"
 }
 
-variable "key_name" {
-  description = "Existing EC2 key pair name for SSH access"
-  type        = string
-}
-
 variable "allowed_ssh_cidr" {
-  description = "CIDR allowed to SSH (restrict this, do not leave 0.0.0.0/0)"
+  description = "CIDR allowed to SSH. Leave null to auto-detect and restrict to the machine running terraform apply."
   type        = string
+  default     = null
 }
 
 variable "allowed_jenkins_cidr" {
