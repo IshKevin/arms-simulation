@@ -16,5 +16,11 @@ def index():
     return jsonify(message="hello from helloservice")
 
 
+@app.route("/version")
+def version():
+    """Report the current service version."""
+    return jsonify(version="0.1.1")
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
