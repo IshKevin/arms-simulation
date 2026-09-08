@@ -8,3 +8,14 @@ kubeconfig
 
 # Local access/setup notes (contains internal IP, cluster name, RBAC details)
 access.md
+
+# Terraform — state/plan files contain resource data and secrets in plaintext
+# (e.g. the generated SSH private key), even when an output is marked sensitive
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+

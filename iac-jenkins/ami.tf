@@ -1,15 +1,5 @@
-# Always resolves to the latest Amazon Linux 2023 AMI at apply time
-data "aws_ami" "al2023" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-*-x86_64"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
+# Always resolves to the latest official Ubuntu 24.04 LTS AMI via
+# Canonical/AWS's published SSM parameter (updated automatically upstream).
+data "aws_ssm_parameter" "ubuntu" {
+  name = "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
 }

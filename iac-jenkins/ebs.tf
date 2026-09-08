@@ -1,6 +1,6 @@
 # Separate persistent volume for JENKINS_HOME, decoupled from instance lifecycle
 resource "aws_ebs_volume" "jenkins_home" {
-  availability_zone = aws_instance.jenkins.availability_zone
+  availability_zone = local.az
   size              = var.jenkins_home_volume_size
   type              = "gp3"
 
