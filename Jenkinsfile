@@ -1,51 +1,136 @@
 pipeline {
     agent any
+
+    environment {
+        // Every service under services/ is Python. Point this at your real
+        // registry (Docker Hub, ECR, GHCR, ...).
+        //REGISTRY = 'REPLACE_WITH_YOUR_REGISTRY'
+
+        // Jenkins credentials IDs (Manage Jenkins > Credentials) — create these
+        // before running the pipeline for real.
+       // REGISTRY_CREDENTIALS_ID = 'registry-credentials'
+        //GIT_SSH_CREDENTIALS_ID  = 'git-ssh-credentials'
+    }
+
+    // This pipeline is CI only: build, lint, validate, push an image, and bump
+    // the chart's image tag on the current branch. It never touches the
+    // cluster and never runs `kubectl`/`argocd` — deployment is entirely
+    // Argo CD's job once a change lands on main.
     stages {
-        stage('Detect changed services') {
+        stage('Verify PR targets main') {
+            when {
+                not { changeRequest target: 'main' }
+            }
             steps {
                 script {
-                    def changed = sh(
-                        script: "git diff --name-only origin/main...HEAD | grep '^services/' | cut -d/ -f2 | sort -u",
-                        returnStdout: true
-                    ).trim().split('\n')
-                    env.CHANGED_SERVICES = changed.join(',')
+                    currentBuild.result = 'NOT_BUILT'
+                    error('Skipping: this pipeline only runs for pull requests targeting main.')
                 }
             }
         }
-        stage('Required file check') {
+
+        stage('Detect changed services') {
+            when {
+                changeRequest target: 'main'
+            }
             steps {
-                sh 'test f services/SERVICE_NAME/Dockerfile'
-                sh 'test f services/SERVICE_NAME/chart/Chart.yaml'
-                sh 'test f services/SERVICE_NAME/chart/values.yaml'
+                script {
+                    sh 'git fetch origin main'
+                    def changed = sh(
+                        script: "git diff --name-only origin/main...HEAD | grep '^services/' | cut -d/ -f2 | sort -u || true",
+                        returnStdout: true
+                    ).trim()
+                    env.CHANGED_SERVICES = changed
+                    echo changed ? "Changed services: ${changed}" : 'No service changes detected.'
+                }
             }
         }
-        stage('Code standard check') {
-            steps {
-                sh 'run your linter here, for example eslint or checkstyle depending on the language'
+
+        stage('Process changed services') {
+            when {
+                allOf {
+                    changeRequest target: 'main'
+                    expression { return env.CHANGED_SERVICES?.trim() }
+                }
             }
-        }
-        stage('Code cleanliness check') {
             steps {
-                sh 'run your static analysis tool here, for example a sonar scanner command'
-            }
-        }
-        stage('Manifest validation') {
-            steps {
-                sh 'helm lint services/SERVICE_NAME/chart'
-                sh 'helm template services/SERVICE_NAME/chart | kubeconform strict summary'
-            }
-        }
-        stage('Build image from branch') {
-            steps {
-                sh 'docker build t your registry SERVICE_NAME BRANCH_COMMIT services/SERVICE_NAME'
-                sh 'docker push your registry SERVICE_NAME BRANCH_COMMIT'
-            }
-        }
-        stage('Update tag on this branch only') {
-            steps {
-                sh 'yq i .image.tag equals BRANCH_COMMIT services/SERVICE_NAME/chart/values.yaml'
-                sh 'git commit am ci update SERVICE_NAME tag on branch'
-                sh 'git push origin HEAD'
+                script {
+                    def services = env.CHANGED_SERVICES.split('\n')
+                    def commitSha = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+
+                    for (svc in services) {
+                        def svcPath = "services/${svc}"
+                        def venv = "${svcPath}/.venv"
+
+                        stage("${svc}: Required file check") {
+                            sh "test -f ${svcPath}/Dockerfile"
+                            sh "test -f ${svcPath}/chart/Chart.yaml"
+                            sh "test -f ${svcPath}/chart/values.yaml"
+                            sh "test -f ${svcPath}/requirements.txt"
+                        }
+
+                        stage("${svc}: Install dependencies") {
+                            sh """
+                                python3 -m venv ${venv}
+                                . ${venv}/bin/activate
+                                pip install --upgrade pip
+                                pip install -r ${svcPath}/requirements.txt
+                                pip install flake8 pylint
+                            """
+                        }
+
+                        stage("${svc}: Code standard check") {
+                            // PEP8 / style
+                            sh """
+                                . ${venv}/bin/activate
+                                flake8 ${svcPath}/src
+                            """
+                        }
+
+                        stage("${svc}: Code cleanliness check") {
+                            // Static analysis / code smells
+                            sh """
+                                . ${venv}/bin/activate
+                                pylint ${svcPath}/src
+                            """
+                        }
+
+                        stage("${svc}: Manifest validation") {
+                            // Local chart/schema validation only — no cluster contacted.
+                            sh "helm lint ${svcPath}/chart"
+                            sh "helm template ${svcPath}/chart | kubeconform -strict -summary"
+                        }
+
+                        stage("${svc}: Build and push image") {
+                            withCredentials([usernamePassword(
+                                credentialsId: env.REGISTRY_CREDENTIALS_ID,
+                                usernameVariable: 'REG_USER',
+                                passwordVariable: 'REG_PASS'
+                            )]) {
+                                sh """
+                                    echo "\$REG_PASS" | docker login ${REGISTRY} -u "\$REG_USER" --password-stdin
+                                    docker build -t ${REGISTRY}/${svc}:${commitSha} ${svcPath}
+                                    docker push ${REGISTRY}/${svc}:${commitSha}
+                                """
+                            }
+                        }
+
+                        stage("${svc}: Update tag on this branch") {
+                            // Pushes only to this branch, never to main — main only
+                            // changes when the pull request is actually merged, which
+                            // is what keeps Argo CD from deploying an unreviewed change.
+                            sshagent([env.GIT_SSH_CREDENTIALS_ID]) {
+                                sh """
+                                    yq -i '.image.tag = "${commitSha}"' ${svcPath}/chart/values.yaml
+                                    git config user.email 'jenkins@ci.local'
+                                    git config user.name 'jenkins-ci'
+                                    git commit -am 'ci: update ${svc} tag to ${commitSha} on branch'
+                                    git push origin HEAD:${env.BRANCH_NAME}
+                                """
+                            }
+                        }
+                    }
+                }
             }
         }
     }
