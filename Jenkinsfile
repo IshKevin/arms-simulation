@@ -43,9 +43,21 @@ pipeline {
             }
             steps {
                 script {
-                    sh 'git fetch origin main'
+                    // PR builds only fetch the PR's own ref (refs/pull/N/head), not
+                    // the full branch refspec, so plain `git fetch origin main`
+                    // updates FETCH_HEAD but never creates a ref literally named
+                    // origin/main. Fetch it into an explicit ref so the diff below
+                    // can actually resolve it.
+                    sh 'git fetch origin main:refs/remotes/origin/main'
+                    def diffStatus = sh(
+                        script: 'git diff --name-only origin/main...HEAD > /tmp/changed_files.txt',
+                        returnStatus: true
+                    )
+                    if (diffStatus != 0) {
+                        error("git diff against origin/main failed (exit ${diffStatus}) — cannot safely determine changed services.")
+                    }
                     def changed = sh(
-                        script: "git diff --name-only origin/main...HEAD | grep '^services/' | cut -d/ -f2 | sort -u || true",
+                        script: "grep '^services/' /tmp/changed_files.txt | cut -d/ -f2 | sort -u || true",
                         returnStdout: true
                     ).trim()
                     env.CHANGED_SERVICES = changed
@@ -148,7 +160,7 @@ pipeline {
                                         git config user.email 'jenkins@ci.local'
                                         git config user.name 'jenkins-ci'
                                         git commit -am 'ci: update ${svc} image to ${repoUri}:${commitSha} on branch'
-                                        git push https://${GIT_USER}:${GIT_TOKEN}@${repoPath} HEAD:${env.BRANCH_NAME}
+                                        git push https://\$GIT_USER:\$GIT_TOKEN@${repoPath} HEAD:refs/heads/${env.CHANGE_BRANCH}
                                     """
                                 }
                             }

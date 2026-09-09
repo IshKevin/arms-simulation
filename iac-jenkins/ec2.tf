@@ -17,10 +17,30 @@ resource "aws_instance" "jenkins" {
 
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -y
-    apt-get install -y fdisk wget gnupg xfsprogs
+    apt-get install -y fdisk wget gnupg xfsprogs unzip curl python3-venv python3-pip docker.io
 
     # Latest OpenJDK 21 LTS
     apt-get install -y openjdk-21-jdk
+
+    systemctl enable --now docker
+    usermod -aG docker jenkins
+
+    # Helm (official installer, always latest stable)
+    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+    # kubeconform (latest release binary)
+    KUBECONFORM_VERSION=$(curl -fsSL https://api.github.com/repos/yannh/kubeconform/releases/latest | grep -oP '"tag_name": "\K[^"]+')
+    curl -fsSL "https://github.com/yannh/kubeconform/releases/download/$${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar -xz -C /usr/local/bin kubeconform
+
+    # yq (latest release binary)
+    YQ_VERSION=$(curl -fsSL https://api.github.com/repos/mikefarah/yq/releases/latest | grep -oP '"tag_name": "\K[^"]+')
+    curl -fsSL "https://github.com/mikefarah/yq/releases/download/$${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
+    chmod +x /usr/local/bin/yq
+
+    # AWS CLI v2
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+    (cd /tmp && unzip -q awscliv2.zip && ./aws/install)
+    rm -rf /tmp/aws /tmp/awscliv2.zip
 
     # Official Jenkins apt repo. Jenkins rotates this signing key periodically
     # (the filename's year is the expiry) — check jenkins.io/doc/book/installing/linux
