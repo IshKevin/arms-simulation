@@ -79,12 +79,34 @@ pipeline {
                     if (diffStatus != 0) {
                         error("git diff against origin/main failed (exit ${diffStatus}) — cannot safely determine changed services.")
                     }
-                    def changed = sh(
+                    def candidates = sh(
                         script: "grep '^services/' /tmp/changed_files.txt | cut -d/ -f2 | sort -u || true",
                         returnStdout: true
                     ).trim()
-                    env.CHANGED_SERVICES = changed
-                    echo changed ? "Changed services: ${changed}" : 'No service changes detected.'
+
+                    // A service can still differ from origin/main purely because
+                    // of its own earlier [skip ci] tag-bump commit (e.g. from a
+                    // previous build on this same PR), with nothing genuinely
+                    // new since. Only rebuild services that have at least one
+                    // real, non-CI commit since main — otherwise every build
+                    // would keep re-processing every service ever touched on
+                    // this branch, not just what's actually new.
+                    def realChanges = []
+                    if (candidates) {
+                        for (svc in candidates.split('\n')) {
+                            def nonCiCommitCount = sh(
+                                script: "git log origin/main..HEAD --invert-grep --grep='\\[skip ci\\]' --oneline -- services/${svc} | wc -l",
+                                returnStdout: true
+                            ).trim()
+                            if (nonCiCommitCount.toInteger() > 0) {
+                                realChanges << svc
+                            } else {
+                                echo "Skipping ${svc}: only CI-authored commits since main, nothing new to rebuild"
+                            }
+                        }
+                    }
+                    env.CHANGED_SERVICES = realChanges.join('\n')
+                    echo env.CHANGED_SERVICES ? "Changed services: ${env.CHANGED_SERVICES}" : 'No service changes detected.'
                 }
             }
         }
