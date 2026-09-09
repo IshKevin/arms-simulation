@@ -160,7 +160,7 @@ pipeline {
                                         git config user.email 'jenkins@ci.local'
                                         git config user.name 'jenkins-ci'
                                         git commit -am 'ci: update ${svc} image to ${repoUri}:${commitSha} on branch'
-                                        git push https://${GIT_USER}:${GIT_TOKEN}@${repoPath} HEAD:${env.BRANCH_NAME}
+                                        git push https://\$GIT_USER:\$GIT_TOKEN@${repoPath} HEAD:refs/heads/${env.CHANGE_BRANCH}
                                     """
                                 }
                             }

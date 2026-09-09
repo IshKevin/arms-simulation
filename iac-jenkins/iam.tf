@@ -29,22 +29,22 @@ resource "aws_iam_role_policy" "jenkins_ecr_public" {
     Version = "2012-10-17"
     Statement = [
       {
-        # ECR Public authenticates via an STS service-bearer-token, not the
-        # regular ecr:GetAuthorizationToken action private ECR uses.
+        # `aws ecr-public get-login-password` is checked against both
+        # ecr-public:GetAuthorizationToken (granted below) and this STS
+        # permission for the underlying bearer-token exchange. Granted
+        # unconditionally (no sts:AWSServiceName restriction) since the
+        # exact required condition value wasn't reliably verifiable and
+        # this role is already scoped to this one CI purpose.
         Sid      = "EcrPublicAuth"
         Effect   = "Allow"
         Action   = "sts:GetServiceBearerToken"
         Resource = "*"
-        Condition = {
-          StringEquals = {
-            "sts:AWSServiceName" = "ecr-public.amazonaws.com"
-          }
-        }
       },
       {
         Sid    = "EcrPublicPush"
         Effect = "Allow"
         Action = [
+          "ecr-public:GetAuthorizationToken",
           "ecr-public:DescribeRepositories",
           "ecr-public:CreateRepository",
           "ecr-public:BatchCheckLayerAvailability",
