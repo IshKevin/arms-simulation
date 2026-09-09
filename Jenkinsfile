@@ -1,6 +1,12 @@
 pipeline {
     agent any
 
+    options {
+        // Extra safety net alongside the [skip ci] check below: prevents two
+        // overlapping runs of the same PR from racing to push at once.
+        disableConcurrentBuilds()
+    }
+
     environment {
         // The rest of this project lives in eu-west-1 (Ireland), but ECR
         // Public's control-plane API only exists in us-east-1 — that's an
@@ -25,6 +31,23 @@ pipeline {
     // the cluster and never runs `kubectl`/`argocd` — deployment is entirely
     // Argo CD's job once a change lands on main.
     stages {
+        stage('Skip CI-authored commits') {
+            // Without this, the tag-bump commit pushed at the end of this
+            // pipeline re-triggers the webhook, which re-runs this pipeline,
+            // which pushes another tag-bump commit, forever — an infinite
+            // self-triggering loop. jenkins-ci marks its own commits so this
+            // stage can recognize and stop them.
+            steps {
+                script {
+                    def lastCommitMsg = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                    if (lastCommitMsg.contains('[skip ci]')) {
+                        currentBuild.result = 'NOT_BUILT'
+                        error("Skipping: HEAD is a CI-authored commit: ${lastCommitMsg}")
+                    }
+                }
+            }
+        }
+
         stage('Verify PR targets main') {
             when {
                 not { changeRequest target: 'main' }
@@ -159,7 +182,7 @@ pipeline {
                                         yq -i '.image.tag = "${commitSha}"' ${svcPath}/chart/values.yaml
                                         git config user.email 'jenkins@ci.local'
                                         git config user.name 'jenkins-ci'
-                                        git commit -am 'ci: update ${svc} image to ${repoUri}:${commitSha} on branch'
+                                        git commit -am 'ci: update ${svc} image to ${repoUri}:${commitSha} on branch [skip ci]'
                                         git push https://\$GIT_USER:\$GIT_TOKEN@${repoPath} HEAD:refs/heads/${env.CHANGE_BRANCH}
                                     """
                                 }

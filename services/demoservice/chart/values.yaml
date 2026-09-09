@@ -1,0 +1,12 @@
+replicaCount: 1
+
+image:
+  repository: REPLACE_WITH_YOUR_REGISTRY/demoservice
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources: {}
