@@ -31,38 +31,35 @@ pipeline {
     // the cluster and never runs `kubectl`/`argocd` — deployment is entirely
     // Argo CD's job once a change lands on main.
     stages {
-        stage('Skip CI-authored commits') {
-            // Without this, the tag-bump commit pushed at the end of this
-            // pipeline re-triggers the webhook, which re-runs this pipeline,
-            // which pushes another tag-bump commit, forever — an infinite
-            // self-triggering loop. jenkins-ci marks its own commits so this
-            // stage can recognize and stop them.
+        stage('Explain skip reason, if any') {
+            // Purely informational — never fails the build. The when clauses
+            // below on the real work stages are what actually decide whether
+            // to run, using the same two conditions (echoed here as plain
+            // text since Jenkins doesn't otherwise explain a when-skip well).
             steps {
                 script {
-                    def lastCommitMsg = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
-                    if (lastCommitMsg.contains('[skip ci]')) {
-                        currentBuild.result = 'NOT_BUILT'
-                        error("Skipping: HEAD is a CI-authored commit: ${lastCommitMsg}")
+                    if (!(env.CHANGE_ID && env.CHANGE_TARGET == 'main')) {
+                        echo 'Skipping: this pipeline only runs for pull requests targeting main.'
+                    } else {
+                        def lastCommitMsg = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                        if (lastCommitMsg.contains('[skip ci]')) {
+                            echo "Skipping: HEAD is a CI-authored commit: ${lastCommitMsg}"
+                        }
                     }
-                }
-            }
-        }
-
-        stage('Verify PR targets main') {
-            when {
-                not { changeRequest target: 'main' }
-            }
-            steps {
-                script {
-                    currentBuild.result = 'NOT_BUILT'
-                    error('Skipping: this pipeline only runs for pull requests targeting main.')
                 }
             }
         }
 
         stage('Detect changed services') {
             when {
-                changeRequest target: 'main'
+                allOf {
+                    changeRequest target: 'main'
+                    not {
+                        expression {
+                            sh(script: "git log -1 --pretty=%B | grep -qF '[skip ci]'", returnStatus: true) == 0
+                        }
+                    }
+                }
             }
             steps {
                 script {
@@ -115,6 +112,11 @@ pipeline {
             when {
                 allOf {
                     changeRequest target: 'main'
+                    not {
+                        expression {
+                            sh(script: "git log -1 --pretty=%B | grep -qF '[skip ci]'", returnStatus: true) == 0
+                        }
+                    }
                     expression { return env.CHANGED_SERVICES?.trim() }
                 }
             }
