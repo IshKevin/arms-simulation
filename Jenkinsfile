@@ -17,7 +17,7 @@ pipeline {
         // before running the pipeline for real. This only stores an ID string
         // in this public repo; the actual token stays in Jenkins' credential
         // store and is never exposed.
-        GIT_CREDENTIALS_ID = 'git-https-credentials' // Username/password: GitHub username / personal access token
+        GIT_CREDENTIALS_ID = 'git-https-credentials' // Username/password: GitHub username / personal access token (classic)
     }
 
     // This pipeline is CI only: build, lint, validate, push the image to ECR
@@ -148,7 +148,7 @@ pipeline {
                                         git config user.email 'jenkins@ci.local'
                                         git config user.name 'jenkins-ci'
                                         git commit -am 'ci: update ${svc} image to ${repoUri}:${commitSha} on branch'
-                                        git push https://${GIT_USER}:${GIT_TOKEN}@${repoPath} HEAD:${env.BRANCH_NAME}'
+                                        git push https://${GIT_USER}:${GIT_TOKEN}@${repoPath} HEAD:${env.BRANCH_NAME}
                                     """
                                 }
                             }
