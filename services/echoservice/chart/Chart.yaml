@@ -1,0 +1,6 @@
+apiVersion: v2
+name: echoservice
+description: Helm chart for the echoservice ARMS simulation test service
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
