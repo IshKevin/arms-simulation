@@ -1,7 +1,7 @@
 replicaCount: 1
 image:
   repository: public.ecr.aws/t3j5g5u3/echoservice
-  tag: 8f7260f
+  tag: "252e117"
   pullPolicy: IfNotPresent
 service:
   type: ClusterIP
