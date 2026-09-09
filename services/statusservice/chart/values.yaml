@@ -1,7 +1,7 @@
 replicaCount: 1
 image:
   repository: public.ecr.aws/t3j5g5u3/statusservice
-  tag: 0d3bbb3
+  tag: "3082884"
   pullPolicy: IfNotPresent
 service:
   type: ClusterIP
