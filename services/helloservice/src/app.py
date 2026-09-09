@@ -19,7 +19,7 @@ def index():
 @app.route("/version")
 def version():
     """Report the current service version."""
-    return jsonify(version="0.1.2")
+    return jsonify(version="1.1.1")
 
 
 if __name__ == "__main__":
