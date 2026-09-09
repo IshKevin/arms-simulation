@@ -31,25 +31,6 @@ pipeline {
     // the cluster and never runs `kubectl`/`argocd` — deployment is entirely
     // Argo CD's job once a change lands on main.
     stages {
-        stage('Explain skip reason, if any') {
-            // Purely informational — never fails the build. The when clauses
-            // below on the real work stages are what actually decide whether
-            // to run, using the same two conditions (echoed here as plain
-            // text since Jenkins doesn't otherwise explain a when-skip well).
-            steps {
-                script {
-                    if (!(env.CHANGE_ID && env.CHANGE_TARGET == 'main')) {
-                        echo 'Skipping: this pipeline only runs for pull requests targeting main.'
-                    } else {
-                        def lastCommitMsg = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
-                        if (lastCommitMsg.contains('[skip ci]')) {
-                            echo "Skipping: HEAD is a CI-authored commit: ${lastCommitMsg}"
-                        }
-                    }
-                }
-            }
-        }
-
         stage('Detect changed services') {
             when {
                 allOf {
