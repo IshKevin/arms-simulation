@@ -1,7 +1,7 @@
 replicaCount: 1
 image:
   repository: public.ecr.aws/t3j5g5u3/timeservice
-  tag: "58a8dc9"
+  tag: "ed7f1df"
   pullPolicy: IfNotPresent
 service:
   type: ClusterIP
