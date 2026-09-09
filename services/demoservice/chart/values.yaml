@@ -1,12 +1,9 @@
 replicaCount: 1
-
 image:
-  repository: REPLACE_WITH_YOUR_REGISTRY/demoservice
-  tag: latest
+  repository: public.ecr.aws/t3j5g5u3/demoservice
+  tag: 1abbf2f
   pullPolicy: IfNotPresent
-
 service:
   type: ClusterIP
   port: 8080
-
 resources: {}
