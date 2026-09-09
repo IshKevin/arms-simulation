@@ -1,0 +1,9 @@
+replicaCount: 1
+image:
+  repository: public.ecr.aws/t3j5g5u3/statusservice
+  tag: "3082884"
+  pullPolicy: IfNotPresent
+service:
+  type: ClusterIP
+  port: 8080
+resources: {}
