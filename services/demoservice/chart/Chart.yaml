@@ -1,6 +1,0 @@
-apiVersion: v2
-name: demoservice
-description: Helm chart for the demoservice ARMS simulation demo
-type: application
-version: 0.1.0
-appVersion: "1.0.0"
